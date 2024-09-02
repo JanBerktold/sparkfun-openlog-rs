@@ -82,6 +82,7 @@ where
         let mut operations = [
             Operation::Write(&command),
             Operation::Write(directory.as_bytes()),
+            Operation::Write(&[0]),
         ];
 
         self.i2c.transaction(self.address as u8, &mut operations)
@@ -94,6 +95,7 @@ where
         let mut operations = [
             Operation::Write(&command),
             Operation::Write(file.as_bytes()),
+            Operation::Write(&[0]),
         ];
 
         self.i2c.transaction(self.address as u8, &mut operations)
@@ -106,22 +108,60 @@ where
         let mut operations = [
             Operation::Write(&command),
             Operation::Write(file.as_bytes()),
+            Operation::Write(&[0]),
         ];
 
         self.i2c.transaction(self.address as u8, &mut operations)
     }
+
+    pub fn write(&mut self, data: &[u8]) -> Result<(), I2C::Error> {
+        // TODO: Validate that data is no longer than 31 bytes.
+        let command = Command::WriteFile.as_bytes();
+
+        let mut operations = [
+            Operation::Write(&command),
+            Operation::Write(data),
+            Operation::Write(&[0]),
+        ];
+
+        self.i2c.transaction(self.address as u8, &mut operations)
+    }
+
+    pub fn write_string(&mut self, data: &str) -> Result<(), I2C::Error> {
+        self.write(data.as_bytes())
+    }
+
+    /// Sync the current open file to disk.
+    pub fn sync_file(&mut self) -> Result<(), I2C::Error> {
+        let command = Command::SyncFile.as_bytes();
+
+        let mut operations = [Operation::Write(&command)];
+
+        self.i2c.transaction(self.address as u8, &mut operations)
+    }
+
+    /// Given a file name, read the size of the file.
+    pub fn size(&mut self, file: &str) -> Result<u32, I2C::Error> {
+        let command = Command::FileSize.as_bytes();
+
+        let mut result = [0u8; 4];
+
+        let mut operations = [
+            Operation::Write(&command),
+            Operation::Write(file.as_bytes()),
+            Operation::Write(&[0]),
+            Operation::Read(&mut result),
+        ];
+
+        self.i2c.transaction(self.address as u8, &mut operations)?;
+
+        Ok(u32::from_be_bytes(result))
+    }
 }
 
 /*
-    Outstanding commands:
-
-    virtual size_t write(uint8_t character);
-    int writeString(String string);
-    bool syncFile(void);
-
     boolean setI2CAddress(uint8_t addr); //Set the I2C address we read and write to
     boolean changeDirectory(String directoryName); //Change to the given directory
-    int32_t size(String fileName); //Given a file name, read the size of the file
 
     void read(uint8_t* userBuffer, uint16_t bufferSize, String fileName); //Read the contents of a file into the provided buffer
 
