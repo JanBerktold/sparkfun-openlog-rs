@@ -1,16 +1,12 @@
 use ftdi_embedded_hal::{
     libftd2xx::{Ft232h, Ftdi},
-    FtHal,
+    FtHal, I2c,
 };
 use sparkfun_openlog::{DeviceAddr, OpenLogger};
 
 #[test]
 fn test_status() -> anyhow::Result<()> {
-    let device = Ftdi::new()?;
-    let device: Ft232h = device.try_into()?;
-
-    let hal = FtHal::init_freq(device, 50_000)?;
-    let i2c = hal.i2c()?;
+    let i2c = connect_i2c()?;
 
     let mut logger = OpenLogger::new(DeviceAddr::ADDR1, i2c);
 
@@ -26,11 +22,7 @@ fn test_status() -> anyhow::Result<()> {
 
 #[test]
 fn test_writing_to_file() -> anyhow::Result<()> {
-    let device = Ftdi::new()?;
-    let device: Ft232h = device.try_into()?;
-
-    let hal = FtHal::init_freq(device, 50_000)?;
-    let i2c = hal.i2c()?;
+    let i2c = connect_i2c()?;
 
     let mut logger = OpenLogger::new_and_validate(DeviceAddr::ADDR1, i2c)?;
 
@@ -56,4 +48,14 @@ fn test_writing_to_file() -> anyhow::Result<()> {
     assert_eq!(size, 4);
 
     Ok(())
+}
+
+fn connect_i2c() -> anyhow::Result<I2c<Ft232h>> {
+    let device = Ftdi::new()?;
+    let device: Ft232h = device.try_into()?;
+
+    let hal = FtHal::init_freq(device, 50_000)?;
+    let i2c = hal.i2c()?;
+
+    Ok(i2c)
 }
