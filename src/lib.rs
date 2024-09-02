@@ -1,3 +1,13 @@
+//! A platform-agnostic, embedded-hal driver for the [Sparkfun OpenLogger](https://www.sparkfun.com/products/13712).
+#![no_std]
+
+mod command;
+use command::Command;
+
+mod version;
+use embedded_hal::i2c::Operation;
+pub use version::Version;
+
 mod status;
 pub use status::Status;
 
@@ -15,73 +25,90 @@ pub struct OpenLogger<I2C> {
     i2c: I2C,
 }
 
-#[repr(u8)]
-enum Command {
-    Status = 0x01,
-    FirmwareMajor = 0x02,
-    FirmwareMinor = 0x03,
-    /*
-        .i2cAddress = 0x1E,
-        .logInit = 0x05,
-        .createFile = 0x06,
-        .mkDir = 0x07,
-        .cd = 0x08,
-        .readFile = 0x09,
-        .startPosition = 0x0A,
-        .openFile = 0x0B,
-        .writeFile = 0x0C,
-        .fileSize = 0x0D,
-        .list = 0x0E,
-        .rm = 0x0F,
-        .rmrf = 0x10,
-    .syncFile = 0x11,
-     */
-}
-
 impl<I2C> OpenLogger<I2C>
 where
     I2C: embedded_hal::i2c::I2c,
 {
+    /// Create a new OpenLogger instance.
     pub fn new(address: DeviceAddr, i2c: I2C) -> Self {
         Self { i2c, address }
     }
 
-    pub fn get_version(&mut self) -> Result<String, I2C::Error> {
-        let command = [Command::FirmwareMajor as u8];
+    /// Create a new OpenLogger instance and validate that it is ready for writing.
+    pub fn new_and_validate(address: DeviceAddr, i2c: I2C) -> Result<Self, I2C::Error> {
+        let mut logger = Self::new(address, i2c);
+        let status = logger.get_status()?;
+
+        if !status.init_ok() {
+            todo!("find the correct error type");
+        }
+
+        Ok(logger)
+    }
+
+    pub fn get_version(&mut self) -> Result<Version, I2C::Error> {
         let mut major = [0u8; 2];
-        self.i2c
-            .write_read(self.address as u8, &command, &mut major)?;
+        self.i2c.write_read(
+            self.address as u8,
+            &Command::FirmwareMajor.as_bytes(),
+            &mut major,
+        )?;
 
-        let command = [Command::FirmwareMinor as u8];
         let mut minor = [0u8; 2];
-        self.i2c
-            .write_read(self.address as u8, &command, &mut minor)?;
+        self.i2c.write_read(
+            self.address as u8,
+            &Command::FirmwareMinor.as_bytes(),
+            &mut minor,
+        )?;
 
-        Ok(format!("{}.{}", major[0], minor[0]))
-
-        /*
-          sendCommand(registerMap.firmwareMajor, "");
-          // Upon completion Qwiic OpenLog will have 2 bytes ready to be read
-          _i2cPort->requestFrom(_deviceAddress, (uint8_t)1);
-
-          uint8_t versionMajor = _i2cPort->read();
-          sendCommand(registerMap.firmwareMinor, "");
-          // Upon completion Qwiic OpenLog will have 2 bytes ready to be read
-          _i2cPort->requestFrom(_deviceAddress, (uint8_t)1);
-
-          uint8_t versionMinor = _i2cPort->read();
-
-          return (String(versionMajor) + "." + String(versionMinor));
-        */
+        Ok(Version {
+            major: major[0],
+            minor: minor[0],
+        })
     }
 
     pub fn get_status(&mut self) -> Result<Status, I2C::Error> {
-        let command = [Command::Status as u8];
         let mut result = [0u8; 1];
         self.i2c
-            .write_read(self.address as u8, &command, &mut result)?;
+            .write_read(self.address as u8, &Command::Status.as_bytes(), &mut result)?;
 
         Ok(Status::from(result[0]))
+    }
+
+    /// Create a new directory, relative to the current directory.
+    pub fn make_directory(&mut self, directory: &str) -> Result<(), I2C::Error> {
+        let command = Command::MkDir.as_bytes();
+
+        let mut operations = [
+            Operation::Write(&command),
+            Operation::Write(directory.as_bytes()),
+        ];
+
+        self.i2c.transaction(self.address as u8, &mut operations)
+    }
+
+    /// Open and append to a file.
+    pub fn append(&mut self, file: &str) -> Result<(), I2C::Error> {
+        let command = Command::OpenFile.as_bytes();
+
+        let mut operations = [
+            Operation::Write(&command),
+            Operation::Write(file.as_bytes()),
+        ];
+
+        self.i2c.transaction(self.address as u8, &mut operations)
+    }
+
+    /// Create a new file, but don't open it for writing.
+    pub fn create(&mut self, file: &str) -> Result<(), I2C::Error> {
+        let command = Command::CreateFile.as_bytes();
+
+        let mut operations = [
+            Operation::Write(&command),
+            Operation::Write(file.as_bytes()),
+        ];
+
+        self.i2c.transaction(self.address as u8, &mut operations)
     }
 }
 
@@ -93,9 +120,6 @@ where
     bool syncFile(void);
 
     boolean setI2CAddress(uint8_t addr); //Set the I2C address we read and write to
-    boolean append(String fileName); //Open and append to a file
-    boolean create(String fileName); //Create a file but don't open it for writing
-    boolean makeDirectory(String directoryName); //Create the given directory
     boolean changeDirectory(String directoryName); //Change to the given directory
     int32_t size(String fileName); //Given a file name, read the size of the file
 
