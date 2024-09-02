@@ -2,6 +2,7 @@
 /// Purely for internal use.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug)]
+#[allow(unused)]
 pub enum Command {
     Status = 0x01,
     FirmwareMajor = 0x02,
