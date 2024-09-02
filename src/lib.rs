@@ -1,6 +1,9 @@
 //! A platform-agnostic, embedded-hal driver for the [Sparkfun OpenLogger](https://www.sparkfun.com/products/13712).
 #![no_std]
 
+mod address;
+pub use address::DeviceAddr;
+
 mod command;
 use command::Command;
 
@@ -10,14 +13,6 @@ pub use version::Version;
 
 mod status;
 pub use status::Status;
-
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, Default)]
-pub enum DeviceAddr {
-    #[default]
-    ADDR1 = 0x2A,
-    ADDR2 = 0x29,
-}
 
 #[derive(Debug)]
 pub struct OpenLogger<I2C> {
@@ -49,14 +44,14 @@ where
     pub fn get_version(&mut self) -> Result<Version, I2C::Error> {
         let mut major = [0u8; 2];
         self.i2c.write_read(
-            self.address as u8,
+            self.address.into(),
             &Command::FirmwareMajor.as_bytes(),
             &mut major,
         )?;
 
         let mut minor = [0u8; 2];
         self.i2c.write_read(
-            self.address as u8,
+            self.address.into(),
             &Command::FirmwareMinor.as_bytes(),
             &mut minor,
         )?;
@@ -69,8 +64,11 @@ where
 
     pub fn get_status(&mut self) -> Result<Status, I2C::Error> {
         let mut result = [0u8; 1];
-        self.i2c
-            .write_read(self.address as u8, &Command::Status.as_bytes(), &mut result)?;
+        self.i2c.write_read(
+            self.address.into(),
+            &Command::Status.as_bytes(),
+            &mut result,
+        )?;
 
         Ok(Status::from(result[0]))
     }
@@ -85,7 +83,7 @@ where
             Operation::Write(&[0]),
         ];
 
-        self.i2c.transaction(self.address as u8, &mut operations)
+        self.i2c.transaction(self.address.into(), &mut operations)
     }
 
     /// Open and append to a file.
@@ -98,7 +96,7 @@ where
             Operation::Write(&[0]),
         ];
 
-        self.i2c.transaction(self.address as u8, &mut operations)
+        self.i2c.transaction(self.address.into(), &mut operations)
     }
 
     /// Create a new file, but don't open it for writing.
@@ -111,7 +109,7 @@ where
             Operation::Write(&[0]),
         ];
 
-        self.i2c.transaction(self.address as u8, &mut operations)
+        self.i2c.transaction(self.address.into(), &mut operations)
     }
 
     pub fn write(&mut self, data: &[u8]) -> Result<(), I2C::Error> {
@@ -124,7 +122,7 @@ where
             Operation::Write(&[0]),
         ];
 
-        self.i2c.transaction(self.address as u8, &mut operations)
+        self.i2c.transaction(self.address.into(), &mut operations)
     }
 
     pub fn write_string(&mut self, data: &str) -> Result<(), I2C::Error> {
@@ -137,7 +135,7 @@ where
 
         let mut operations = [Operation::Write(&command)];
 
-        self.i2c.transaction(self.address as u8, &mut operations)
+        self.i2c.transaction(self.address.into(), &mut operations)
     }
 
     /// Given a file name, read the size of the file.
@@ -153,7 +151,7 @@ where
             Operation::Read(&mut result),
         ];
 
-        self.i2c.transaction(self.address as u8, &mut operations)?;
+        self.i2c.transaction(self.address.into(), &mut operations)?;
 
         Ok(u32::from_be_bytes(result))
     }
