@@ -1,9 +1,9 @@
 [package]
 name = "sparkfun-openlog"
-description = "A platform-agnostic, embedded-hal driver for the [Sparkfun OpenLogger](https://www.sparkfun.com/products/13712)."
+description = "A platform-agnostic, embedded-hal driver for the Sparkfun Qwiic OpenLogger (https://www.sparkfun.com/products/15164)."
 categories = ["no-std", "embedded"]
 repository = "https://github.com/JanBerktold/sparkfun-openlog-rs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 
@@ -14,3 +14,6 @@ embedded-hal = "1.0.0"
 ftdi-embedded-hal = { version = "0.22.0", features = ["libftd2xx"] }
 embedded-hal-compat = "0.13"
 anyhow = "1"
+
+[patch.crates-io]
+libftd2xx-ffi = { path = "../libftd2xx-ffi" }
